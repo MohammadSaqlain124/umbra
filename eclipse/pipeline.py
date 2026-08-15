@@ -36,3 +36,14 @@ def find_lunar_eclipses(eph, t0, t1):
             "skyfield_kind": eclipselib.LUNAR_ECLIPSES[codes[i]],
             "umbral_magnitude": float(umbral_mag[i]),
         }
+
+def to_records(eclipses):
+    """Turn finder output into flat rows ready for the database."""
+    for e in eclipses:
+        t = e["time"]
+        yield {
+            "peak_utc": t.utc_strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "peak_jd_tt": float(t.tt),
+            "kind": e["kind"],
+            "umbral_magnitude": e["umbral_magnitude"],
+        }
