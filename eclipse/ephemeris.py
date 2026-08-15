@@ -27,3 +27,10 @@ class Ephemeris:
         lo = self.ts.tt_jd(self.start_jd).utc_strftime("%Y-%m-%d")
         hi = self.ts.tt_jd(self.end_jd).utc_strftime("%Y-%m-%d")
         return lo, hi
+    @property
+    def earth(self):
+        return self.kernel["earth"]
+
+    @property
+    def moon(self):
+        return self.kernel["moon"]
