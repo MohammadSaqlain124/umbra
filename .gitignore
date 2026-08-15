@@ -1,0 +1,12 @@
+# Virtual environment — never commit this
+.venv/
+
+# Large ephemeris kernels — download these, don't version them
+*.bsp
+
+# Generated catalogue (we'll build this next session)
+data/*.db
+
+# Python
+__pycache__/
+*.pyc

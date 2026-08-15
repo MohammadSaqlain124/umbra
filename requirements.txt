@@ -1,0 +1,2 @@
+skyfield>=1.49
+skyfield-data>=7.0.0
