@@ -27,6 +27,25 @@ class Ephemeris:
         lo = self.ts.tt_jd(self.start_jd).utc_strftime("%Y-%m-%d")
         hi = self.ts.tt_jd(self.end_jd).utc_strftime("%Y-%m-%d")
         return lo, hi
+    
+    def clamp(self, start_year, end_year, margin_days=10.0):
+        # Trim a requested [start_year, end_year] down to what the kernel
+        # can actually cover, so a build never charges past the file's edge.
+        req_lo = self.ts.utc(start_year, 1, 1)
+        req_hi = self.ts.utc(end_year, 1, 1)
+
+        # Pull the edges inward by a margin: the eclipse-finder walks a 5-day
+        # grid and refines each peak with a parabola that can reach up to one
+        # step beyond an endpoint. Landing right on the boundary re-triggers
+        # the OutOfRange crash, so we stay 10 days clear.
+        cov_lo = self.ts.tt_jd(self.start_jd + margin_days)
+        cov_hi = self.ts.tt_jd(self.end_jd - margin_days)
+
+        t_start = req_lo if req_lo.tt >= cov_lo.tt else cov_lo
+        t_end = req_hi if req_hi.tt <= cov_hi.tt else cov_hi
+        was_clamped = (t_start.tt != req_lo.tt) or (t_end.tt != req_hi.tt)
+        return t_start, t_end, was_clamped
+    
     @property
     def earth(self):
         return self.kernel["earth"]

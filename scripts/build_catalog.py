@@ -19,8 +19,10 @@ def main():
     args = parser.parse_args()
 
     eph = Ephemeris()
-    t0 = eph.ts.utc(args.start, 1, 1)
-    t1 = eph.ts.utc(args.end, 1, 1)
+    t0, t1, clamped = eph.clamp(args.start, args.end)
+    if clamped:
+        lo, hi = eph.coverage()
+        print(f"  [clamped] {args.start}-{args.end} trimmed to kernel window {lo}..{hi}")
 
     print(f"Finding lunar eclipses {args.start}-{args.end}...")
     rows = list(to_records(find_lunar_eclipses(eph, t0, t1)))
