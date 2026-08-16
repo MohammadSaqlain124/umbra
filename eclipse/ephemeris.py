@@ -53,3 +53,7 @@ class Ephemeris:
     @property
     def moon(self):
         return self.kernel["moon"]
+    
+    @property
+    def sun(self):
+        return self.kernel["sun"]
