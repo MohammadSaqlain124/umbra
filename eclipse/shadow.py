@@ -70,3 +70,16 @@ def path_width_km(eph, t):
     cos_tilt = abs(np.dot(axis, normal))
 
     return 2 * rho / cos_tilt
+
+def trace_path(eph, t_center, half_window_hours=3.0, step_minutes=2):
+    # Step the shadow across Earth and record the centre at each moment the
+    # umbra is actually on the surface. The result is the centreline -- the
+    # curve drawn on every eclipse map. A partial eclipse yields an empty list.
+    steps = int(half_window_hours * 60 / step_minutes)
+    path = []
+    for i in range(-steps, steps + 1):
+        t = eph.ts.tt_jd(t_center.tt + (i * step_minutes) / 1440.0)
+        pt = sub_shadow_point(eph, t)
+        if pt is not None:
+            path.append((t, pt[0], pt[1]))
+    return path
