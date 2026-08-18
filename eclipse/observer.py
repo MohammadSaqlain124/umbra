@@ -28,7 +28,7 @@ def solar_circumstances(eph, t_center, latitude, longitude):
     def sep_only(t):
         a = site.at(t)
         return a.observe(sun).apparent().separation_from(a.observe(moon).apparent()).degrees
-    sep_only.step_days = 0.002
+    sep_only.step_days = 0.02
 
     window = 0.11   # ~2.6 hours either side of global greatest eclipse
     tmin, _ = find_minima(eph.ts.tt_jd(t_center.tt - window),
@@ -60,7 +60,7 @@ def solar_circumstances(eph, t_center, latitude, longitude):
         def central(t):
             sep, sun_r, moon_r, _ = _angles(site, sun, moon, t)
             return sep < abs(moon_r - sun_r)
-        central.step_days = 0.0005
+        central.step_days = 0.002
         tc, _ = find_discrete(eph.ts.tt_jd(tm.tt - 0.02),
                               eph.ts.tt_jd(tm.tt + 0.02), central)
         if len(tc) == 2:

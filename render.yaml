@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: umbra
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python scripts/build_catalog.py --start 1900 --end 2053
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"

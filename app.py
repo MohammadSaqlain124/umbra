@@ -22,6 +22,10 @@ def health():
 
 @app.get("/api/eclipses")
 def eclipses(lat: float, lon: float, year_from: int | None = None, year_to: int | None = None):
+    # Cap the span: solar circumstances are computed live, so an unbounded
+    # range would be slow on a small instance.
+    if year_from is not None and year_to is not None and year_to - year_from > 20:
+        year_to = year_from + 20
     conn = db.connect(DB_PATH)
     events = find_events(EPH, conn, lat, lon, year_from, year_to)
     conn.close()
