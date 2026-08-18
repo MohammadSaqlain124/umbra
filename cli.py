@@ -7,14 +7,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from eclipse.ephemeris import Ephemeris
-from eclipse.circumstances import local_timeline
-from eclipse.observer import solar_circumstances
+from eclipse.query import find_events
 from eclipse import db
-
-
-def _in_range(row, y0, y1):
-    y = int(row["peak_utc"][:4])
-    return (y0 is None or y >= y0) and (y1 is None or y < y1)
 
 
 def main():
@@ -32,47 +26,20 @@ def main():
 
     eph = Ephemeris()
     conn = db.connect(args.db)
-    events = []   # (jd_tt, line, visible)
+    events = find_events(eph, conn, args.lat, args.lon, args.year_from, args.year_to)
+    conn.close()
 
-    for row in db.all_eclipses(conn):
-        if not _in_range(row, args.year_from, args.year_to):
-            continue
-        tl = local_timeline(eph, row, args.lat, args.lon)
-        line = f"{row['peak_utc'][:10]}  Lunar {row['kind']:9}  ->  {tl['verdict']}"
-        events.append((row["peak_jd_tt"], line, tl["verdict"] != "not visible"))
-
-    for row in db.all_solar_eclipses(conn):
-        if not _in_range(row, args.year_from, args.year_to):
-            continue
-        c = solar_circumstances(eph, eph.ts.tt_jd(row["peak_jd_tt"]), args.lat, args.lon)
-        kind = c["kind"]
-        if kind in ("Total", "Annular"):
-            detail = f"{kind} here, mag {c['magnitude']:.2f}"
-            if c.get("duration_s"):
-                s = c["duration_s"]
-                detail += f", {s // 60}m{s % 60:02d}s"
-            visible = True
-        elif kind == "Partial":
-            detail = f"partial here, mag {c['magnitude']:.2f}"
-            visible = True
-        else:
-            detail = "not visible from here"
-            visible = False
-        line = f"{row['peak_utc'][:10]}  Solar {row['kind']:9}  ->  {detail}"
-        events.append((row["peak_jd_tt"], line, visible))
-
-    events.sort(key=lambda e: e[0])
     header = f"Eclipses from lat {args.lat}, lon {args.lon}"
     print(header)
     print("=" * len(header))
     shown = 0
-    for _, line, visible in events:
-        if not args.all and not visible:
+    for e in events:
+        if not args.all and not e["visible"]:
             continue
         shown += 1
-        print(line)
+        category = e["category"].capitalize()
+        print(f"{e['date']}  {category} {e['kind']:9}  ->  {e['summary']}")
     print(f"\n{shown} eclipse(s).")
-    conn.close()
 
 
 if __name__ == "__main__":
