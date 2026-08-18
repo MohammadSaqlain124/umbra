@@ -1,4 +1,4 @@
-"""Query the catalogue: which lunar eclipses were visible from a location?"""
+"""umbra -- which solar and lunar eclipses can you see from a location?"""
 
 import argparse
 import os
@@ -8,26 +8,22 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from eclipse.ephemeris import Ephemeris
 from eclipse.circumstances import local_timeline
+from eclipse.observer import solar_circumstances
 from eclipse import db
 
 
-def _crossing_note(tl):
-    # Turn any horizon crossing into a short parenthetical for the summary.
-    notes = []
-    for c in tl["crossings"]:
-        verb = "rises" if c["rising"] else "sets"
-        notes.append(f"Moon {verb} {c['time'].utc_strftime('%H:%M')} UTC")
-    return f"   ({'; '.join(notes)})" if notes else ""
+def _in_range(row, y0, y1):
+    y = int(row["peak_utc"][:4])
+    return (y0 is None or y >= y0) and (y1 is None or y < y1)
 
 
 def main():
-    p = argparse.ArgumentParser(description="Lunar eclipses visible from a location.")
+    p = argparse.ArgumentParser(description="Eclipses visible from a location, solar and lunar.")
     p.add_argument("--lat", type=float, required=True, help="latitude, N positive")
     p.add_argument("--lon", type=float, required=True, help="longitude, E positive")
     p.add_argument("--from", dest="year_from", type=int, default=None)
     p.add_argument("--to", dest="year_to", type=int, default=None)
-    p.add_argument("--all", action="store_true", help="include not-visible eclipses")
-    p.add_argument("--timeline", action="store_true", help="print all seven contacts")
+    p.add_argument("--all", action="store_true", help="include eclipses not visible from here")
     p.add_argument("--db", default="data/eclipses.db")
     args = p.parse_args()
 
@@ -36,30 +32,45 @@ def main():
 
     eph = Ephemeris()
     conn = db.connect(args.db)
+    events = []   # (jd_tt, line, visible)
 
-    shown = 0
     for row in db.all_eclipses(conn):
-        year = int(row["peak_utc"][:4])
-        if args.year_from and year < args.year_from:
+        if not _in_range(row, args.year_from, args.year_to):
             continue
-        if args.year_to and year >= args.year_to:
-            continue
-
         tl = local_timeline(eph, row, args.lat, args.lon)
-        if not args.all and tl["verdict"] == "not visible":
+        line = f"{row['peak_utc'][:10]}  Lunar {row['kind']:9}  ->  {tl['verdict']}"
+        events.append((row["peak_jd_tt"], line, tl["verdict"] != "not visible"))
+
+    for row in db.all_solar_eclipses(conn):
+        if not _in_range(row, args.year_from, args.year_to):
             continue
+        c = solar_circumstances(eph, eph.ts.tt_jd(row["peak_jd_tt"]), args.lat, args.lon)
+        kind = c["kind"]
+        if kind in ("Total", "Annular"):
+            detail = f"{kind} here, mag {c['magnitude']:.2f}"
+            if c.get("duration_s"):
+                s = c["duration_s"]
+                detail += f", {s // 60}m{s % 60:02d}s"
+            visible = True
+        elif kind == "Partial":
+            detail = f"partial here, mag {c['magnitude']:.2f}"
+            visible = True
+        else:
+            detail = "not visible from here"
+            visible = False
+        line = f"{row['peak_utc'][:10]}  Solar {row['kind']:9}  ->  {detail}"
+        events.append((row["peak_jd_tt"], line, visible))
 
+    events.sort(key=lambda e: e[0])
+    header = f"Eclipses from lat {args.lat}, lon {args.lon}"
+    print(header)
+    print("=" * len(header))
+    shown = 0
+    for _, line, visible in events:
+        if not args.all and not visible:
+            continue
         shown += 1
-        note = _crossing_note(tl) if tl["verdict"] == "partially visible" else ""
-        print(f"{row['peak_utc']}  {tl['kind']:10} {tl['verdict']:18}{note}".rstrip())
-
-        if args.timeline:
-            for r in tl["contacts"]:
-                mark = "up" if r["up"] else "below horizon"
-                print(f"      {r['label']:9} {r['time'].utc_strftime('%H:%M')} UTC   "
-                      f"alt {r['altitude_deg']:6.1f}   {mark}")
-            print()
-
+        print(line)
     print(f"\n{shown} eclipse(s).")
     conn.close()
 
