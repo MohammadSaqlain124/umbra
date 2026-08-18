@@ -83,3 +83,38 @@ def trace_path(eph, t_center, half_window_hours=3.0, step_minutes=2):
         if pt is not None:
             path.append((t, pt[0], pt[1]))
     return path
+
+def _bearing(lat1, lon1, lat2, lon2):
+    la1, lo1, la2, lo2 = map(np.radians, (lat1, lon1, lat2, lon2))
+    dlon = lo2 - lo1
+    return np.arctan2(np.sin(dlon) * np.cos(la2),
+                      np.cos(la1) * np.sin(la2) - np.sin(la1) * np.cos(la2) * np.cos(dlon))
+
+
+def _offset(lat, lon, bearing_rad, dist_km):
+    R = 6371.0
+    la1, lo1 = np.radians(lat), np.radians(lon)
+    d = dist_km / R
+    la2 = np.arcsin(np.sin(la1) * np.cos(d) + np.cos(la1) * np.sin(d) * np.cos(bearing_rad))
+    lo2 = lo1 + np.arctan2(np.sin(bearing_rad) * np.sin(d) * np.cos(la1),
+                           np.cos(d) - np.sin(la1) * np.sin(la2))
+    return float(np.degrees(la2)), float(np.degrees(lo2))
+
+
+def path_limits(eph, t_center):
+    # The centreline plus the two edges of the umbral band, each a list of
+    # (lat, lon). Edges are the centreline offset left/right by half the local
+    # path width, perpendicular to the direction of travel.
+    path = trace_path(eph, t_center)
+    center, north, south = [], [], []
+    for i in range(len(path)):
+        t, la, lo = path[i]
+        if i + 1 < len(path):
+            brg = _bearing(la, lo, path[i + 1][1], path[i + 1][2])
+        else:
+            brg = _bearing(path[i - 1][1], path[i - 1][2], la, lo)
+        half = path_width_km(eph, t) / 2.0
+        center.append((float(la), float(lo)))
+        north.append(_offset(la, lo, brg - np.pi / 2, half))
+        south.append(_offset(la, lo, brg + np.pi / 2, half))
+    return center, north, south
