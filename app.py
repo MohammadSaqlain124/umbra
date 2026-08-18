@@ -28,6 +28,13 @@ def eclipses(lat: float, lon: float, year_from: int | None = None, year_to: int 
     return {"lat": lat, "lon": lon, "count": len(events), "eclipses": events}
 
 
+@app.get("/api/path")
+def path(jd: float):
+    from eclipse.shadow import path_limits
+    center, north, south = path_limits(EPH, EPH.ts.tt_jd(jd))
+    return {"center": center, "north": north, "south": south}
+
+
 @app.get("/")
 def index():
     return FileResponse("static/index.html")

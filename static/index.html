@@ -36,6 +36,9 @@ button:focus-visible{outline:2px solid var(--star);outline-offset:2px}
 .meta{display:flex;justify-content:space-between;align-items:center;margin:6px 2px 6px;color:var(--dim);font-size:14px}
 .event{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:baseline;padding:15px 4px;border-top:1px solid var(--line)}
 .event.dim{opacity:.4}
+.event.clickable{cursor:pointer}
+.event.clickable:hover{background:rgba(227,166,76,.06)}
+.path-link{color:var(--solar)}
 .date{font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--dim);white-space:nowrap}
 .kind{font-family:'Fraunces',serif;font-size:19px;font-weight:600}
 .kind .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:9px;vertical-align:middle}
@@ -102,6 +105,25 @@ $('#loc').addEventListener('click', () => {
     () => { $('#loc').textContent = 'Use my location'; });
 });
 $('#go').addEventListener('click', find);
+let pathLayer = null;
+async function showPath(jd){
+  try {
+    const p = await (await fetch(`/api/path?jd=${jd}`)).json();
+    if (!p.center.length) return;
+    if (pathLayer) map.removeLayer(pathLayer);
+    const band = p.north.concat(p.south.slice().reverse());
+    pathLayer = L.layerGroup([
+      L.polygon(band, {stroke:false, fillColor:'#E3A64C', fillOpacity:.22}),
+      L.polyline(p.center, {color:'#E3A64C', weight:2})
+    ]).addTo(map);
+    map.fitBounds(L.polyline(p.center).getBounds(), {padding:[30,30]});
+    document.getElementById('map').scrollIntoView({behavior:'smooth', block:'center'});
+  } catch {}
+}
+$('#results').addEventListener('click', ev => {
+  const row = ev.target.closest('.clickable');
+  if (row) showPath(parseFloat(row.dataset.jd));
+});
 $('#showall').addEventListener('change', render);
 async function find(){
   const lat = parseFloat($('#lat').value), lon = parseFloat($('#lon').value);
@@ -123,13 +145,15 @@ function render(){
   const vis = data.filter(e => e.visible).length;
   $('#count').textContent = `${vis} visible eclipse${vis===1?'':'s'}`;
   if (!list.length){ $('#results').innerHTML = '<p class="empty">No eclipses in this range.</p>'; return; }
-  $('#results').innerHTML = list.map(e => `
-    <div class="event ${e.visible?'':'dim'}">
+  $('#results').innerHTML = list.map(e => {
+    const central = e.category==='solar' && ['Total','Annular','Hybrid'].includes(e.kind);
+    return `<div class="event ${e.visible?'':'dim'} ${central?'clickable':''}"${central?` data-jd="${e.jd_tt}"`:''}>
       <span class="date">${e.date}</span>
       <div>
         <div class="kind ${e.category}"><span class="dot"></span>${e.category[0].toUpperCase()+e.category.slice(1)} · ${e.kind}</div>
-        <div class="detail">${e.summary}</div>
+        <div class="detail">${e.summary}${central?' <span class="path-link">· show path ↗</span>':''}</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 </script>
