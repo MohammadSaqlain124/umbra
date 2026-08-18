@@ -43,3 +43,39 @@ def all_eclipses(conn):
     return conn.execute(
         "SELECT * FROM lunar_eclipses ORDER BY peak_jd_tt"
     ).fetchall()
+    
+SOLAR_SCHEMA = """
+CREATE TABLE IF NOT EXISTS solar_eclipses (
+    id            INTEGER PRIMARY KEY,
+    peak_utc      TEXT NOT NULL,
+    peak_jd_tt    REAL NOT NULL,
+    kind          TEXT NOT NULL,     -- Partial | Annular | Total | Hybrid
+    gamma         REAL NOT NULL,
+    central_lat   REAL,              -- greatest-eclipse point (NULL if partial)
+    central_lon   REAL,
+    path_width_km REAL               -- band width (NULL if partial)
+);
+CREATE INDEX IF NOT EXISTS idx_solar_peak_jd ON solar_eclipses(peak_jd_tt);
+"""
+
+
+def init_solar_schema(conn):
+    conn.executescript(SOLAR_SCHEMA)
+    conn.commit()
+
+
+def insert_solar_eclipses(conn, rows):
+    conn.executemany(
+        """
+        INSERT INTO solar_eclipses
+            (peak_utc, peak_jd_tt, kind, gamma, central_lat, central_lon, path_width_km)
+        VALUES
+            (:peak_utc, :peak_jd_tt, :kind, :gamma, :central_lat, :central_lon, :path_width_km)
+        """,
+        rows,
+    )
+    conn.commit()
+
+
+def all_solar_eclipses(conn):
+    return conn.execute("SELECT * FROM solar_eclipses ORDER BY peak_jd_tt").fetchall()

@@ -1,5 +1,5 @@
 """Find solar eclipses and classify each as total, annular, hybrid, or partial."""
-
+from eclipse.shadow import sub_shadow_point, path_width_km
 import numpy as np
 from skyfield.searchlib import find_minima
 
@@ -62,3 +62,25 @@ def find_solar_eclipses(eph, t0, t1):
             continue                    # whole shadow misses Earth
         yield {"time": t, "gamma": round(float(gamma), 3),
                "kind": _classify(gamma, size_ratio)}
+        
+def to_solar_records(eph, eclipses):
+    # Turn detector output into flat catalogue rows, computing the greatest-
+    # eclipse point and band width for central eclipses. Partials get NULLs.
+    for e in eclipses:
+        t = e["time"]
+        pt = sub_shadow_point(eph, t)
+        if pt is None:
+            clat = clon = width = None
+        else:
+            clat, clon = pt
+            w = path_width_km(eph, t)
+            width = round(w, 1) if w is not None else None
+        yield {
+            "peak_utc": t.utc_strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "peak_jd_tt": float(t.tt),
+            "kind": e["kind"],
+            "gamma": e["gamma"],
+            "central_lat": clat,
+            "central_lon": clon,
+            "path_width_km": width,
+        }

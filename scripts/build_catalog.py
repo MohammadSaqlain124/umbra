@@ -1,41 +1,36 @@
-"""Build the lunar eclipse catalogue. Run once; query forever."""
-
-import argparse
-import os
-import sys
-
+import argparse, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from eclipse.ephemeris import Ephemeris
 from eclipse.pipeline import find_lunar_eclipses, to_records
+from eclipse.solar import find_solar_eclipses, to_solar_records
 from eclipse import db
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--start", type=int, default=2000)
-    parser.add_argument("--end", type=int, default=2050)
-    parser.add_argument("--db", default="data/eclipses.db")
-    args = parser.parse_args()
+    p = argparse.ArgumentParser()
+    p.add_argument("--start", type=int, default=2000)
+    p.add_argument("--end", type=int, default=2050)
+    p.add_argument("--db", default="data/eclipses.db")
+    a = p.parse_args()
 
     eph = Ephemeris()
-    t0, t1, clamped = eph.clamp(args.start, args.end)
-    if clamped:
-        lo, hi = eph.coverage()
-        print(f"  [clamped] {args.start}-{args.end} trimmed to kernel window {lo}..{hi}")
+    t0, t1, _ = eph.clamp(a.start, a.end)
 
-    print(f"Finding lunar eclipses {args.start}-{args.end}...")
-    rows = list(to_records(find_lunar_eclipses(eph, t0, t1)))
-    print(f"  found {len(rows)} eclipses")
-
-    conn = db.connect(args.db)
+    conn = db.connect(a.db)
     db.init_schema(conn)
-    conn.execute("DELETE FROM lunar_eclipses")   # clean rebuild
-    db.insert_eclipses(conn, rows)
-    conn.close()
+    db.init_solar_schema(conn)
 
-    size_kb = os.path.getsize(args.db) // 1024
-    print(f"Wrote {args.db} ({size_kb} KB)")
+    lunar = list(to_records(find_lunar_eclipses(eph, t0, t1)))
+    conn.execute("DELETE FROM lunar_eclipses")
+    db.insert_eclipses(conn, lunar)
+    print(f"lunar:  {len(lunar)} eclipses")
+
+    solar = list(to_solar_records(eph, find_solar_eclipses(eph, t0, t1)))
+    conn.execute("DELETE FROM solar_eclipses")
+    db.insert_solar_eclipses(conn, solar)
+    print(f"solar:  {len(solar)} eclipses")
+
+    conn.close()
 
 
 if __name__ == "__main__":
